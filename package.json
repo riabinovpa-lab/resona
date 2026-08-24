@@ -12,6 +12,7 @@
     "check:live": "node --env-file-if-exists=.env supabase/smoke.mjs",
     "db:apply": "node --env-file-if-exists=.env supabase/apply.mjs",
     "db:print": "node supabase/apply.mjs --print --reset --seed",
+    "deploy": "npm run build && gh-pages -d dist -b gh-pages -u \"Resona <dev@resona.local>\" -m \"Сборка студии\"",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -49,6 +50,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^6.0.4",
+    "gh-pages": "^6.3.0",
     "oxlint": "^1.75.0",
     "pg": "^8.23.0",
     "shadcn": "^4.19.0",
