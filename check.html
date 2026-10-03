@@ -47,11 +47,15 @@
         border: 0;
         border-radius: 12px;
       }
+      button:disabled { color: #a89a89; background: #241d18; }
     </style>
   </head>
   <body>
     <h1>Проверка связи</h1>
-    <p class="lede">Ничего нажимать не нужно. Дождитесь галочек и пришлите снимок экрана.</p>
+    <p class="lede">
+      Ничего нажимать не нужно. Подождите, пока у всех четырёх строк появится галочка или крестик —
+      это до десяти секунд. Потом пришлите снимок экрана.
+    </p>
 
     <div id="list"></div>
     <div id="verdict" class="wait">Проверяем…</div>
@@ -93,12 +97,12 @@
       async function ask(url) {
         const started = Date.now()
         const stop = new AbortController()
-        const bell = setTimeout(() => stop.abort(), 15000)
+        const bell = setTimeout(() => stop.abort(), 8000)
         try {
           const response = await fetch(url, { cache: 'no-store', signal: stop.signal })
           return { ok: true, detail: `ответ за ${Date.now() - started} мс` }
         } catch (error) {
-          const why = error.name === 'AbortError' ? 'не ответил за 15 секунд' : 'соединение не прошло'
+          const why = error.name === 'AbortError' ? 'молчит 8 секунд' : 'соединение не прошло'
           return { ok: false, detail: `${why} (${Date.now() - started} мс)` }
         } finally {
           clearTimeout(bell)
@@ -107,9 +111,13 @@
 
       const list = document.getElementById('list')
       const verdict = document.getElementById('verdict')
+      const copy = document.getElementById('copy')
       const lines = []
 
       async function main() {
+        copy.disabled = true
+        copy.textContent = 'Подождите, идёт проверка'
+
         const rows = CHECKS.map((check) => {
           const row = document.createElement('div')
           row.className = 'row'
@@ -121,22 +129,28 @@
           return row
         })
 
-        let broken = 0
-        for (let i = 0; i < CHECKS.length; i++) {
-          let result
-          try {
-            result = await CHECKS[i].run()
-          } catch (error) {
-            result = { ok: false, detail: 'не получилось проверить' }
-          }
-          const mark = rows[i].querySelector('.mark')
-          mark.textContent = result.ok ? '✓' : '✕'
-          mark.className = 'mark ' + (result.ok ? 'ok' : 'bad')
-          rows[i].querySelector('.note').textContent = result.detail
-          if (!result.ok) broken++
-          lines.push(`${result.ok ? 'OK' : 'СБОЙ'} · ${CHECKS[i].name} · ${result.detail}`)
-        }
+        // Проверки идут разом: по очереди человек ждал бы полминуты и копировал
+        // результат, когда половина строк ещё пустая.
+        const results = await Promise.all(
+          CHECKS.map(async (check, i) => {
+            let result
+            try {
+              result = await check.run()
+            } catch (error) {
+              result = { ok: false, detail: 'не получилось проверить' }
+            }
+            const mark = rows[i].querySelector('.mark')
+            mark.textContent = result.ok ? '✓' : '✕'
+            mark.className = 'mark ' + (result.ok ? 'ok' : 'bad')
+            rows[i].querySelector('.note').textContent = result.detail
+            return result
+          }),
+        )
 
+        results.forEach((result, i) =>
+          lines.push(`${result.ok ? 'OK' : 'СБОЙ'} · ${CHECKS[i].name} · ${result.detail}`),
+        )
+        const broken = results.filter((r) => !r.ok).length
         const base = lines.find((l) => l.includes('База данных')) || ''
         const auth = lines.find((l) => l.includes('Вход')) || ''
         if (!broken) {
@@ -152,14 +166,16 @@
         }
         lines.push('Итог: ' + verdict.textContent)
         lines.push('Браузер: ' + navigator.userAgent)
+        copy.disabled = false
+        copy.textContent = 'Скопировать результат'
       }
 
-      document.getElementById('copy').addEventListener('click', async () => {
+      copy.addEventListener('click', async () => {
         try {
           await navigator.clipboard.writeText(lines.join('\n'))
-          document.getElementById('copy').textContent = 'Скопировано'
+          copy.textContent = 'Скопировано'
         } catch {
-          document.getElementById('copy').textContent = 'Не вышло — пришлите снимок экрана'
+          copy.textContent = 'Не вышло — пришлите снимок экрана'
         }
       })
 
